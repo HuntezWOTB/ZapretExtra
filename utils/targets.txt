@@ -1,0 +1,75 @@
+# targets.txt - endpoint list for zapret.ps1 tests
+#
+# Format:
+#   KeyName = "https://host..."   -> Runs HTTP/TLS checks + ping
+#   KeyName = "PING:1.2.3.4"       -> Ping only
+#
+# Keys must be a single word (letters/digits/underscore), because the
+# script parses them as simple identifiers. You can add or remove lines.
+
+### Discord
+DiscordMain           = "https://discord.com"
+DiscordGateway        = "https://gateway.discord.gg"
+DiscordCDN            = "https://cdn.discordapp.com"
+DiscordUpdates        = "https://updates.discord.com"
+DiscordMedia          = "https://media.discordapp.net"
+DiscordStatus         = "https://discord.status"
+
+### YouTube
+YouTubeWeb            = "https://www.youtube.com"
+YouTubeShort          = "https://youtu.be"
+YouTubeImage          = "https://i.ytimg.com"
+YouTubeVideoRedirect  = "https://redirector.googlevideo.com"
+
+### Google
+GoogleMain            = "https://www.google.com"
+GoogleGstatic         = "https://www.gstatic.com"
+
+### Cloudflare
+CloudflareWeb         = "https://www.cloudflare.com"
+CloudflareCDN         = "https://cdnjs.cloudflare.com"
+CFPing1               = "PING:2.21.48.1"
+CFPing2               = "PING:23.61.208.1"
+CFPing3               = "PING:52.144.193.129"
+CFPing4               = "PING:102.129.147.1"
+CFPing5               = "PING:150.222.202.1"
+CFPing6               = "PING:185.37.39.1"
+CFPing7               = "PING:216.52.12.1"
+
+### Amazon AWS
+AwsConsole            = "https://signin.aws.amazon.com"
+AwsS3                 = "https://s3.amazonaws.com"
+AwsCloudfront         = "https://d1.awsstatic.com"
+AwsPortal             = "https://aws.amazon.com"
+AwsPing1              = "PING:5.226.181.1"
+AwsPing2              = "PING:15.251.0.1"
+AwsPing3              = "PING:52.93.90.193"
+AwsPing4              = "PING:54.240.236.54"
+AwsPing5              = "PING:137.83.50.1"
+AwsPing6              = "PING:172.69.244.1"
+AwsPing7              = "PING:64.62.190.1"
+
+### Instagram
+InstagramMain         = "https://instagram.com"
+InstagramWWW          = "https://www.instagram.com"
+InstagramApi          = "https://i.instagram.com"
+InstagramStatic       = "https://static.cdninstagram.com"
+InstagramGraph        = "https://graph.instagram.com"
+
+### X (Twitter) — all domains
+XMain                 = "https://x.com"
+XWWW                  = "https://www.x.com"
+XApi                  = "https://api.x.com"
+TwitterMain           = "https://twitter.com"
+TwitterWWW            = "https://www.twitter.com"
+TwitterMobile         = "https://mobile.twitter.com"
+TwitterApi            = "https://api.twitter.com"
+TwimgPbs              = "https://pbs.twimg.com"
+TwimgVideo            = "https://video.twimg.com"
+TwimgAbs              = "https://abs.twimg.com"
+
+### Public DNS (PING-only)
+CloudflareDNS1111     = "PING:1.1.1.1"
+CloudflareDNS1001     = "PING:1.0.0.1"
+GoogleDNS8888         = "PING:8.8.8.8"
+GoogleDNS8844         = "PING:8.8.4.4"

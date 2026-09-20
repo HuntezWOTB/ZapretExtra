@@ -1,0 +1,60 @@
+BUILD-CUSTOM-PRESET v2 — точечные пресеты под рабочие серверы
+==============================================================
+Запуск: BUILD-CUSTOM-PRESET.bat (в корне, права админа НЕ нужны)
+Вход: .json из Standard или Combined прогона (dpi-записи игнорируются).
+Единый пресет собирается из лучших результатов по всем факторам:
+HTTP OK (HTTP/TLS 1.1/1.2/1.3) -> меньше ERROR (включая TIMEENDED) ->
+живой пинг (SLOW = провал) -> меньше loss% -> меньше DPI-блокировок
+(LIKELY_BLOCKED/FAIL из dpi-записей того же прогона). Точечные прогоны
+по профилям (см. README_TESTS.txt) складываются в общую базу
+utils\"test results", свежий прогон = свежие победители.
+
+Идея: серверов Amazon/Cloudflare много, и на каждом тесте часть из них
+сыпется (например 8 из 11). Сборщик берёт базу тестирования и строит
+пресеты ТОЛЬКО под рабочие серверы — упавшие исключаются. Один общий
+.bat на семью: внутри отдельные точечные filter-строки под каждый
+рабочий сервер (со стратегией его личного победителя) + фильтры по
+alive-файлам.
+
+Мишени (utils\targets.txt): по 11 серверов на семью — домены + IP:
+  Cloudflare: CloudflareWeb, CloudflareCDN, CloudflareDNS1111/1001,
+              CFPing1..7 (реальные IP из ipset-cloudflare.txt)
+  AWS: AwsConsole, AwsS3, AwsCloudfront, AwsPortal,
+       AwsPing1..7 (реальные IP из list-aws-amazon.txt)
+
+Рабочий сервер:
+  - домен: победитель дал хотя бы один HTTP OK (HTTP/TLS1.2/TLS1.3);
+  - IP: пинг OK минимум в половине прогонов (пинг от стратегии не зависит).
+Упавшие печатаются в FAILED / SKIPPED и в пресеты не попадают.
+
+Выход (всё — в Presets\Custom\, менеджер и тесты видят их автоматически):
+  preset-aws-only (AUTO <дата>).bat — только AWS:
+    точечные --filter-tcp=443 --hostlist-domains=<рабочий AWS-домен>
+    (desync = стратегия победителя именно этого домена),
+    плюс UDP 443 / TCP 80,443,8443 / UDP+TCP 444-65535 по
+    lists\ipsets\amazon-alive.txt (только рабочие IP как /32).
+    С блоком автообновления AWS-листа.
+  preset-cloudflare-only (AUTO <дата>).bat — только Cloudflare:
+    точечные строки по рабочим CF-доменам + UDP 443 / TCP 80,443,8443
+    по lists\ipsets\cloudflare-alive.txt.
+  preset-aws-cloudflare (AUTO <дата>).bat — объединённый: CF-блок + AWS-блок.
+  custom (AUTO <дата>).bat — полный гибрид (как в v1): шаблон overall-best,
+    подмена --dpi-desync по классам-победителям.
+  lists\ipsets\cloudflare-alive.txt, lists\ipsets\amazon-alive.txt —
+    только рабочие IP; если рабочих нет — копируется полный список
+    (FULL-FALLBACK, иначе пустой ipset = режим "any", опасно!).
+
+Важно:
+  - Семейные пресеты ссылаются на alive-файлы — они создаются тем же
+    запуском сборщика, удалять их нельзя. service.bat подхватит новые
+    .bat автоматически (Install Service).
+  - Перед установкой прогоните семейный пресет тестами ещё раз.
+  - Сборщик работает с результатами Standard tests (не DPI checkers).
+  - Пресеты с нестандартной структурой (ALT5, EXP) частично участвуют:
+    недостающие классы пропускаются.
+
+Файлы механизма:
+  utils\build-custom-preset.ps1 — сборщик (ASCII-only, PS 5.1)
+  BUILD-CUSTOM-PRESET.bat       — лаунчер
+  utils\targets.txt             — 11+11 мишеней CF/AWS
+  utils\test zapret.ps1         — дописывает .json для сборщика
