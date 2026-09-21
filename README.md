@@ -1,13 +1,14 @@
-# ZapretExtra v1.00
+# ZapretExtra v1.01
 
-![version](https://img.shields.io/badge/version-1.00-blue)
+![version](https://img.shields.io/badge/version-1.01-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **ZapretExtra** — усиленная Windows-сборка обхода DPI-блокировок на базе
 [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube):
 59 пресетов от двух авторов, русскоязычный менеджер, профильные тесты
-(Discord / YouTube / Instagram / X / Cloudflare / Amazon) и конструктор,
+(Discord / YouTube / Instagram / X / Telegram / Facebook / Cloudflare /
+Amazon), LIVE-подбор пресета под приложение/сайт и конструктор,
 который собирает персональный пресет из результатов ваших тестов.
 
 > **English summary:** ZapretExtra is an extended Windows DPI-bypass bundle
@@ -18,10 +19,11 @@
 ## Возможности
 
 - **59 пресетов**: 22 Flowseal (с интеграцией Cloudflare + Amazon) + 37 StressOzz (v1–v10, YouTube v01–v27) + ваши собранные
-- **ZAPRET.bat** — русское меню: запуск, служба-автозапуск, обновления с GitHub, тесты, конструктор, настройки
-- **Тесты в 3 режимах** (Standard / DPI / Combined) и 6 профилях, с лимитами времени и пинга
+- **LIVE-подбор (пункт 11)**: захват трафика приложения/сайта → перебор пресетов → точечный пресет с рейтингом
+- **ZAPRET.bat** — русское меню: запуск, служба-автозапуск, обновления с GitHub, тесты, конструктор, настройки, запуск приложений через обход
+- **Тесты в 3 режимах** (Standard / DPI / Combined) и 8 профилях, с лимитами времени и пинга
 - **Конструктор пресетов** — гибрид и семейные пресеты (AWS / Cloudflare / combined) только из рабочих серверов
-- **Списки по сервисам** — `lists/domains/` и `lists/ipsets/` отдельно под Discord, Google, Cloudflare, Amazon, Instagram
+- **Списки по сервисам** — `lists/domains/` (вкл. Telegram/Twitter/Facebook; WhatsApp/OpenAI/Netflix/TikTok в general) и `lists/ipsets/` (вкл. официальные CloudFront + Telegram/Facebook/Twitter через RIPEstat) без дублей, с автообновлением
 
 ## Быстрый старт (5 минут)
 
@@ -31,6 +33,8 @@
 4. Запустите **`ZAPRET.bat`** (права администратора запросятся сами):
    - пункт **6** — прогоните тесты, узнайте рабочую стратегию;
    - пункт **2** — поставьте её как службу (автозапуск для всех пользователей).
+   - пункт **11** — не работает конкретная игра/сайт: захват трафика и подбор пресета на ходу.
+5. Пункт **5** — обновление всего: пресеты, AWS/CloudFront, заблокированные домены, IP-диапазоны сервисов.
 5. Включите защищённый DNS (DoH) в браузере или Windows 11.
 
 Подробно — в [полной документации](Documentation/Documentation.RU.md).
@@ -42,15 +46,17 @@ ZapretExtra/
 ├── ZAPRET.bat            # главный менеджер (русское меню)
 ├── service.bat           # расширенное меню (диагностика, фейки, hosts)
 ├── BUILD-CUSTOM-PRESET.bat
+├── update-aws.ps1        # Amazon (офиц.) + CloudFront
+├── Apps/                 # ваши bat-лаунчеры приложений через обход
 ├── Presets/
 │   ├── Flowseal/         # 22 стратегии general*
 │   ├── StressOzz/        # v1-v10 + youtube-v01-v27
 │   └── Custom/           # собранные вами пресеты
 ├── bin/                  # winws.exe, WinDivert, фейки (tls_clienthello/, quic_initial/)
 ├── lists/
-│   ├── domains/          # домены по сервисам
-│   └── ipsets/           # подсети (+resolved/ — снапшоты резолвинга)
-└── utils/                # тесты, конструктор, конвертеры, мишени
+│   ├── domains/          # домены по сервисам (discord/google/cf/amazon/instagram/telegram/twitter/facebook/general)
+│   └── ipsets/           # подсети (amazon/cloudflare/cloudfront/telegram/facebook/twitter + снапшоты)
+└── utils/                # тесты, LIVE-подбор, конструктор, апдейтеры, мишени
 ```
 
 ## Благодарности и права

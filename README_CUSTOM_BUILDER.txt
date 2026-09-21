@@ -14,7 +14,7 @@ utils\"test results", свежий прогон = свежие победите�
 пресеты ТОЛЬКО под рабочие серверы — упавшие исключаются. Один общий
 .bat на семью: внутри отдельные точечные filter-строки под каждый
 рабочий сервер (со стратегией его личного победителя) + фильтры по
-alive-файлам.
+полным диапазонным спискам (amazon.txt / cloudflare.txt).
 
 Мишени (utils\targets.txt): по 11 серверов на семью — домены + IP:
   Cloudflare: CloudflareWeb, CloudflareCDN, CloudflareDNS1111/1001,
@@ -32,21 +32,21 @@ alive-файлам.
     точечные --filter-tcp=443 --hostlist-domains=<рабочий AWS-домен>
     (desync = стратегия победителя именно этого домена),
     плюс UDP 443 / TCP 80,443,8443 / UDP+TCP 444-65535 по
-    lists\ipsets\amazon-alive.txt (только рабочие IP как /32).
+    lists\ipsets\amazon.txt (полный список диапазонов).
     С блоком автообновления AWS-листа.
   preset-cloudflare-only (AUTO <дата>).bat — только Cloudflare:
     точечные строки по рабочим CF-доменам + UDP 443 / TCP 80,443,8443
-    по lists\ipsets\cloudflare-alive.txt.
+    по lists\ipsets\cloudflare.txt (полный список).
   preset-aws-cloudflare (AUTO <дата>).bat — объединённый: CF-блок + AWS-блок.
   custom (AUTO <дата>).bat — полный гибрид (как в v1): шаблон overall-best,
     подмена --dpi-desync по классам-победителям.
-  lists\ipsets\cloudflare-alive.txt, lists\ipsets\amazon-alive.txt —
-    только рабочие IP; если рабочих нет — копируется полный список
-    (FULL-FALLBACK, иначе пустой ipset = режим "any", опасно!).
+  Alive-файлов больше нет (удалены как бессмысленные: это были 3 протухших
+  /32 с пинг-проб, а не рабочий трафик). Семейные пресеты ссылаются на
+  полные списки; точная фильтрация — задача point-пресетов (LIVE).
 
 Важно:
-  - Семейные пресеты ссылаются на alive-файлы — они создаются тем же
-    запуском сборщика, удалять их нельзя. service.bat подхватит новые
+  - Семейные пресеты ссылаются на полные списки (amazon/cloudflare.txt),
+    отдельных alive-файлов нет. service.bat подхватит новые
     .bat автоматически (Install Service).
   - Перед установкой прогоните семейный пресет тестами ещё раз.
   - Сборщик работает с результатами Standard tests (не DPI checkers).

@@ -122,7 +122,7 @@ for ($n = 1; $n -le 10; $n++) {
     $b = $b.TrimEnd("`r","`n"," ","^") + "`r`n"
   }
   $dst = Join-Path $outDir ('v' + $num + '.bat')
-  Set-Content -LiteralPath $dst -Value $b -Encoding UTF8
+  [IO.File]::WriteAllText($dst, $b, (New-Object System.Text.UTF8Encoding $false))
   $made++
 }
 Write-Output ('[OK] v-presets made: ' + $made)
@@ -140,7 +140,7 @@ for ($i = 1; $i -lt $yparts.Count; $i += 2) {
   $b += 'start "zapret: youtube-v' + $num + ' (StressOzz)" /min "%BIN%winws.exe" --wf-tcp=443 --wf-udp=443' + " ^`r`n"
   $b += $yargs + "`r`n"
   $dst = Join-Path $outDir ('youtube-v' + $num + '.bat')
-  Set-Content -LiteralPath $dst -Value $b -Encoding UTF8
+  [IO.File]::WriteAllText($dst, $b, (New-Object System.Text.UTF8Encoding $false))
   $ymade++
 }
 Write-Output ('[OK] youtube presets made: ' + $ymade)

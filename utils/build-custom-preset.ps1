@@ -1,7 +1,7 @@
 ﻿# build-custom-preset.ps1 v2 — per-server family presets + hybrid preset
 # Input : utils\"test results"\test_results_*.json (from test zapret.ps1, standard tests)
 # Output: preset-aws-only / preset-cloudflare-only / preset-aws-cloudflare (AUTO ts).bat
-#         + custom (AUTO ts).bat (full hybrid) + alive IP lists in lists\
+#         + custom (AUTO ts).bat (full hybrid); family filters use full ipset lists
 # ASCII-only (PS 5.1 safe without BOM).
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -96,6 +96,8 @@ function Get-TargetGroup($name) {
   if ($name -like 'X*' -or $name -like 'Twitter*' -or $name -like 'Twimg*') { return 'x' }
   if ($name -like 'Cloudflare*' -or $name -like 'CFPing*') { return 'cloudflare' }
   if ($name -like 'Aws*') { return 'aws' }
+  if ($name -like 'Telegram*') { return 'telegram' }
+  if ($name -like 'Facebook*') { return 'facebook' }
   return 'other'
 }
 $groupClasses = @{
@@ -104,12 +106,14 @@ $groupClasses = @{
   youtube    = @('tcp-google', 'tcp-general', 'udp443-general')
   instagram  = @('tcp-general', 'udp443-general')
   x          = @('tcp-general', 'udp443-general')
+  telegram   = @('tcp-general', 'udp443-general')
+  facebook   = @('tcp-general', 'udp443-general')
   cloudflare = @('tcp-cloudflare', 'udp-cloudflare', 'tcp-general')
   aws        = @('tcp-aws', 'udp-aws')
   other      = @()
 }
 # family TCP class used for per-domain lines:
-$groupTcpClass = @{ discord = 'tcp-discord-media'; google = 'tcp-google'; youtube = 'tcp-google'; instagram = 'tcp-general'; x = 'tcp-general'; cloudflare = 'tcp-cloudflare'; aws = 'tcp-aws'; other = 'tcp-general' }
+$groupTcpClass = @{ discord = 'tcp-discord-media'; google = 'tcp-google'; youtube = 'tcp-google'; instagram = 'tcp-general'; x = 'tcp-general'; telegram = 'tcp-general'; facebook = 'tcp-general'; cloudflare = 'tcp-cloudflare'; aws = 'tcp-aws'; other = 'tcp-general' }
 
 # loss% from "12 ms, loss 25%" (plain "12 ms" = 0, "Timeout" = 100)
 function Get-Loss($pingResult) {
@@ -194,7 +198,7 @@ Write-Host "=== FAILED / SKIPPED ===" -ForegroundColor Yellow
 if ($failed.Count -eq 0) { Write-Host "  (none)" -ForegroundColor Gray }
 else { foreach ($f in $failed) { Write-Host ("  " + $f) -ForegroundColor Yellow } }
 
-# --- class vote winners (for hybrid + alive-file lines) ---
+# --- class vote winners (for hybrid) ---
 $classVotes = @{}
 foreach ($t in $targetWinners.Keys) {
   foreach ($c in $groupClasses[(Get-TargetGroup $t)]) {
@@ -305,26 +309,14 @@ $cfUdpD = Get-ClassDesync $cfUdpW 'udp-cloudflare' $fallbackUdp
 $awsTcpD = Get-ClassDesync $awsTcpW 'tcp-aws' $fallbackAwsTcp
 $awsUdpD = Get-ClassDesync $awsUdpW 'udp-aws' $fallbackAwsUdp
 
-# --- alive IP files (working only; fallback to full lists if empty) ---
+# --- family ipsets: full range lists, always (no alive narrowing: probed /32s
+# --- rotate and go stale within days; proven precision belongs to point presets) ---
 $stamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-function Write-AliveFile($path, $ips, $fullSrc) {
-  if ($ips.Count -gt 0) {
-    $out = @()
-    foreach ($ip in ($ips | Sort-Object -Unique)) { $out += @($ip + '/32') }
-    $out | Set-Content -LiteralPath $path -Encoding UTF8
-    return 'alive(' + $ips.Count + ')'
-  } else {
-    Copy-Item -LiteralPath $fullSrc -Destination $path -Force
-    return 'FULL-FALLBACK'
-  }
-}
-$cfAlive = Join-Path $listsDir "ipsets\cloudflare-alive.txt"
-$awsAlive = Join-Path $listsDir "ipsets\amazon-alive.txt"
-$cfMode = Write-AliveFile $cfAlive $workingIps['cloudflare'] (Join-Path $listsDir "ipsets\cloudflare.txt")
-$awsMode = Write-AliveFile $awsAlive $workingIps['aws'] (Join-Path $listsDir "ipsets\amazon.txt")
+$cfRef = "cloudflare.txt"
+$awsRef = "amazon.txt"
 Write-Host ""
-Write-Host ("[INFO] {0} : {1}" -f (Split-Path $cfAlive -Leaf), $cfMode) -ForegroundColor Cyan
-Write-Host ("[INFO] {0} : {1}" -f (Split-Path $awsAlive -Leaf), $awsMode) -ForegroundColor Cyan
+Write-Host ("[INFO] ipset {0} : FULL" -f $cfRef) -ForegroundColor Cyan
+Write-Host ("[INFO] ipset {0} : FULL" -f $awsRef) -ForegroundColor Cyan
 
 # --- family .bat builder (outputs to Presets\Custom, ROOT-relative) ---
 $customDir = Join-Path $rootDir 'Presets\Custom'
@@ -361,7 +353,7 @@ function New-FamilyBat($fileName, $title, $wfTcp, $wfUdp, $filterLines, $withAws
     if ($i -eq $filterLines.Count - 1) { $suffix = "`r`n" }
     $body += ($filterLines[$i] + $suffix)
   }
-  Set-Content -LiteralPath (Join-Path $customDir $fileName) -Value ($head + $body) -Encoding UTF8
+  [IO.File]::WriteAllText((Join-Path $customDir $fileName), ($head + $body), (New-Object System.Text.UTF8Encoding $false))
 }
 
 # per-domain lines (point presets, winner strategy each)
@@ -377,29 +369,29 @@ function New-DomainLines($group) {
 
 # AWS-ONLY
 $awsLines = @(New-DomainLines 'aws')
-$awsLines += @('--filter-udp=443 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsUdpD)
-$awsLines += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsTcpD)
-$awsLines += @('--filter-udp=444-65535 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsUdpD)
-$awsLines += @('--filter-tcp=444-65535 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsTcpD)
-New-FamilyBat ("preset-aws-only (AUTO " + $stamp + ").bat") "aws-only" "80,443,444-65535" "443,444-65535" $awsLines $true "aws-domains+alive"
+$awsLines += @('--filter-udp=443 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsUdpD)
+$awsLines += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsTcpD)
+$awsLines += @('--filter-udp=444-65535 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsUdpD)
+$awsLines += @('--filter-tcp=444-65535 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsTcpD)
+New-FamilyBat ("preset-aws-only (AUTO " + $stamp + ").bat") "aws-only" "80,443,444-65535" "443,444-65535" $awsLines $true "aws-domains"
 
 # CLOUDFLARE-ONLY
 $cfLines = @(New-DomainLines 'cloudflare')
-$cfLines += @('--filter-udp=443 --ipset="%LISTS%ipsets\cloudflare-alive.txt" ' + $excl + ' ' + $cfUdpD)
-$cfLines += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\cloudflare-alive.txt" ' + $excl + ' ' + $cfTcpD)
-New-FamilyBat ("preset-cloudflare-only (AUTO " + $stamp + ").bat") "cf-only" "80,443,8443" "443" $cfLines $false "cf-domains+alive"
+$cfLines += @('--filter-udp=443 --ipset="%LISTS%ipsets\cloudflare.txt" ' + $excl + ' ' + $cfUdpD)
+$cfLines += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\cloudflare.txt" ' + $excl + ' ' + $cfTcpD)
+New-FamilyBat ("preset-cloudflare-only (AUTO " + $stamp + ").bat") "cf-only" "80,443,8443" "443" $cfLines $false "cf-domains"
 
 # COMBINED
 $combo = @()
 $combo += @(New-DomainLines 'cloudflare')
-$combo += @('--filter-udp=443 --ipset="%LISTS%ipsets\cloudflare-alive.txt" ' + $excl + ' ' + $cfUdpD)
-$combo += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\cloudflare-alive.txt" ' + $excl + ' ' + $cfTcpD)
+$combo += @('--filter-udp=443 --ipset="%LISTS%ipsets\cloudflare.txt" ' + $excl + ' ' + $cfUdpD)
+$combo += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\cloudflare.txt" ' + $excl + ' ' + $cfTcpD)
 $combo += @(New-DomainLines 'aws')
-$combo += @('--filter-udp=443 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsUdpD)
-$combo += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsTcpD)
-$combo += @('--filter-udp=444-65535 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsUdpD)
-$combo += @('--filter-tcp=444-65535 --ipset="%LISTS%ipsets\amazon-alive.txt" ' + $excl + ' ' + $awsTcpD)
-New-FamilyBat ("preset-aws-cloudflare (AUTO " + $stamp + ").bat") "aws-cf" "80,443,8443,444-65535" "443,444-65535" $combo $true "cf+aws-domains+alive"
+$combo += @('--filter-udp=443 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsUdpD)
+$combo += @('--filter-tcp=80,443,8443 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsTcpD)
+$combo += @('--filter-udp=444-65535 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsUdpD)
+$combo += @('--filter-tcp=444-65535 --ipset="%LISTS%ipsets\amazon.txt" ' + $excl + ' ' + $awsTcpD)
+New-FamilyBat ("preset-aws-cloudflare (AUTO " + $stamp + ").bat") "aws-cf" "80,443,8443,444-65535" "443,444-65535" $combo $true "cf+aws-domains"
 
 Write-Host ""
 Write-Host "[OK] Family presets written:" -ForegroundColor Green
@@ -430,7 +422,7 @@ $outName = "custom (AUTO " + $stamp + ").bat"
 if ($templateText -match '(?s)^(@echo off\r?\nchcp 65001 > nul\r?\n)') {
   $templateText = $templateText -replace '(?s)^(@echo off\r?\nchcp 65001 > nul\r?\n)', ('$1:: AUTO-BUILT from ' + $jsonFile.Name + ' | template=' + $templateName + "`r`n")
 }
-Set-Content -LiteralPath (Join-Path $customDir $outName) -Value $templateText -Encoding UTF8
+[IO.File]::WriteAllText((Join-Path $customDir $outName), $templateText, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("[OK] Hybrid preset: {0}  (replacements: {1})" -f $outName, $replaced.Count) -ForegroundColor Green
 foreach ($r in $replaced) { Write-Host ("  " + $r) -ForegroundColor DarkGray }
 Write-Host "Next: retest the new preset(s) via manager item 6 (they are picked up" -ForegroundColor Cyan

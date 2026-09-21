@@ -14,7 +14,7 @@ set "PRESETS=%~dp0Presets\"
 set "BIN=%~dp0bin\"
 set "LISTS=%~dp0lists\"
 set "LOCAL_VER=1.10.3"
-set "EXTRA_VER=1.00"
+set "EXTRA_VER=1.01"
 set "empty=0"
 title ZapretExtra v%EXTRA_VER% Manager
 
@@ -40,11 +40,13 @@ echo.
 echo   --- Настройки ---
 echo   8. Настройки (Game Filter / IPSet / прочее)
 echo   9. Расширенное меню (service.bat)
+echo   10. Приложение через обход (.exe + свой bat)
+echo   11. LIVE-подбор: захват трафика + подбор пресета
 echo.
 echo   0. Выход
 echo.
 set "mchoice="
-set /p "mchoice=Выберите пункт (0-9): "
+set /p "mchoice=Выберите пункт (0-11): "
 if "%mchoice%"=="" (
     set /a empty+=1
     if !empty! GEQ 5 exit /b
@@ -60,6 +62,8 @@ if "%mchoice%"=="6" goto tests_m
 if "%mchoice%"=="7" goto builder_m
 if "%mchoice%"=="8" goto settings_m
 if "%mchoice%"=="9" goto advanced_m
+if "%mchoice%"=="10" goto apps_m
+if "%mchoice%"=="11" goto live_m
 if "%mchoice%"=="0" exit /b
 goto menu
 
@@ -121,6 +125,13 @@ if not errorlevel 1 (
 echo.
 echo Запуск пресета: !PDISP!
 call "!PICKED!"
+call :wait_winws
+if "!WINWS_OK!"=="0" (
+    call :PrintRed "ОШИБКА: winws.exe не запустился. Пресет битый или неверные аргументы."
+    taskkill /IM winws.exe /F >nul 2>&1
+    pause
+    goto menu
+)
 echo.
 echo Обход запущен. Нажмите любую клавишу, чтобы остановить...
 pause >nul
@@ -261,6 +272,12 @@ echo.
 echo Обновление списка AWS...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%update-aws.ps1"
 echo.
+echo [INFO] Blocked-domain lists (telegram/twitter/facebook/general)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%utils\update-blocklists.ps1"
+echo.
+echo [INFO] Service IP ranges (telegram/facebook/twitter via RIPEstat)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%utils\update-service-ips.ps1"
+echo.
 pause
 goto menu
 
@@ -373,7 +390,7 @@ if exist "%LISTS%ipsets\all.txt.backup" (
     echo Режим loaded восстановлен из бэкапа.
 ) else (
     echo Скачиваю список из репозитория...
-    powershell -NoProfile -Command "$u='https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/refs/heads/main/.service/ipset-service.txt'; $o='%LISTS%ipsets\all.txt'; (Invoke-WebRequest -Uri $u -TimeoutSec 15 -UseBasicParsing).Content | Out-File -FilePath $o -Encoding UTF8"
+    powershell -NoProfile -Command "$u='https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/refs/heads/main/.service/ipset-service.txt'; $o='%LISTS%ipsets\all.txt'; (Invoke-WebRequest -Uri $u -TimeoutSec 15 -UseBasicParsing).Content | Out-File -FilePath $o -Encoding UTF8; $raw=[IO.File]::ReadAllText($o); [IO.File]::WriteAllText($o,$raw,(New-Object System.Text.UTF8Encoding $false))"
     echo Список обновлен.
 )
 pause
@@ -418,6 +435,166 @@ goto settings_m
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%update-aws.ps1"
 pause
 goto settings_m
+
+
+:: ---------- 10. приложение через обход ----------
+:apps_m
+cls
+echo.
+echo   ---------- Приложение через обход ----------
+echo   Обход работает, пока вы не нажмете клавишу (winws глушит всю
+echo   систему, фильтра по процессу в winws нет - честно).
+echo.
+echo   1. Запустить приложение через пресет (временно)
+echo   2. Создать bat для приложения (папка Apps)
+echo.
+echo   0. Назад
+echo.
+set "achoice="
+set /p "achoice=Выберите пункт (0-2): "
+if "%achoice%"=="1" goto apps_run
+if "%achoice%"=="2" goto apps_make
+if "%achoice%"=="0" goto menu
+goto apps_m
+
+:apps_ask
+set "LASTAPP="
+set "LASTARGS="
+if exist "%ROOT%utils\lastapp.txt" (
+    set /p LASTAPP=<"%ROOT%utils\lastapp.txt"
+    for /f "skip=1 delims=" %%A in ('type "%ROOT%utils\lastapp.txt"') do set "LASTARGS=%%A"
+)
+if defined LASTAPP (
+    echo Последний запуск: !LASTAPP! !LASTARGS!
+)
+set "APPPATH="
+set /p "APPPATH=Полный путь к .exe (Enter = последний): "
+if not defined APPPATH set "APPPATH=!LASTAPP!"
+if not defined APPPATH (
+    echo Путь не задан.
+    pause
+    goto menu
+)
+if not exist "!APPPATH!" (
+    echo Файл не найден: !APPPATH!
+    pause
+    goto menu
+)
+set "APPARGS="
+set /p "APPARGS=Аргументы запуска (Enter = без аргументов): "
+> "%ROOT%utils\lastapp.txt" echo !APPPATH!
+>>"%ROOT%utils\lastapp.txt" echo !APPARGS!
+for %%F in ("!APPPATH!") do set "APPNAME=%%~nF"
+exit /b
+
+:apps_run
+call :apps_ask
+call :pick_preset
+sc query zapret | findstr /i "RUNNING" >nul
+if not errorlevel 1 (
+    echo ВНИМАНИЕ: служба zapret запущена. Временный запуск может конфликтовать.
+    set "cc="
+    set /p "cc=Продолжить? (Y/N, по умолчанию N): "
+    if /i not "!cc!"=="Y" goto menu
+)
+echo.
+echo Запуск пресета: !PDISP!
+call "!PICKED!"
+call :wait_winws
+if "!WINWS_OK!"=="0" (
+    call :PrintRed "ОШИБКА: winws.exe не запустился. Приложение стартует БЕЗ обхода."
+    set "cc="
+    set /p "cc=Запустить приложение все равно? (Y/N, по умолчанию N): "
+    if /i not "!cc!"=="Y" (
+        taskkill /IM winws.exe /F >nul 2>&1
+        goto menu
+    )
+)
+echo Запуск приложения: !APPPATH! !APPARGS!
+start "" "!APPPATH!" !APPARGS!
+if errorlevel 1 (
+    call :PrintRed "ОШИБКА: не удалось запустить приложение. Проверьте путь и аргументы."
+    taskkill /IM winws.exe /F >nul 2>&1
+    pause
+    goto menu
+)
+echo.
+echo Обход и приложение запущены. Закройте приложение и нажмите любую
+echo клавишу, чтобы остановить обход...
+pause >nul
+taskkill /IM winws.exe /F >nul 2>&1
+echo Обход остановлен.
+pause
+goto menu
+
+:apps_make
+call :apps_ask
+call :pick_preset
+if not exist "%ROOT%Apps\" md "%ROOT%Apps\"
+set "APPBAT=%ROOT%Apps\App-!APPNAME!.bat"
+>  "!APPBAT!" echo @echo off
+>> "!APPBAT!" echo chcp 866 ^>nul
+>> "!APPBAT!" echo :: !APPNAME! через ZapretExtra (пресет: !REL!)
+>> "!APPBAT!" echo cd /d "%%~dp0.."
+>> "!APPBAT!" echo if not exist "!APPPATH!" (
+>> "!APPBAT!" echo   echo ОШИБКА: приложение не найдено: !APPPATH!
+>> "!APPBAT!" echo   pause
+>> "!APPBAT!" echo   exit /b 1
+>> "!APPBAT!" echo )
+>> "!APPBAT!" echo call "!REL!"
+>> "!APPBAT!" echo echo Ожидание запуска обхода (до 20 сек)...
+>> "!APPBAT!" echo for /l %%%%W in (1,1,20) do (
+>> "!APPBAT!" echo   tasklist /FI "IMAGENAME eq winws.exe" ^| find /I "winws.exe" ^>nul
+>> "!APPBAT!" echo   if not errorlevel 1 goto winws_ok
+>> "!APPBAT!" echo   ^>nul timeout /t 1 /nobreak
+>> "!APPBAT!" echo )
+>> "!APPBAT!" echo echo ВНИМАНИЕ: обход не запустился, приложение стартует БЕЗ обхода.
+>> "!APPBAT!" echo pause
+>> "!APPBAT!" echo :winws_ok
+>> "!APPBAT!" echo start "" "!APPPATH!" !APPARGS!
+>> "!APPBAT!" echo if errorlevel 1 (
+>> "!APPBAT!" echo   echo ОШИБКА: не удалось запустить приложение.
+>> "!APPBAT!" echo   taskkill /IM winws.exe /F ^>nul 2^>^&1
+>> "!APPBAT!" echo   pause
+>> "!APPBAT!" echo   exit /b 1
+>> "!APPBAT!" echo )
+>> "!APPBAT!" echo echo Обход работает, пока открыто это окно...
+>> "!APPBAT!" echo echo Закройте приложение и нажмите любую клавишу для остановки.
+>> "!APPBAT!" echo pause ^>nul
+>> "!APPBAT!" echo taskkill /IM winws.exe /F ^>nul 2^>^&1
+echo.
+echo Создан файл: !APPBAT!
+echo Двойной клик по нему запускает приложение через пресет !REL!
+pause
+goto menu
+
+
+:: ---------- 11. LIVE-подбор пресета ----------
+:live_m
+cls
+echo.
+echo   ---------- LIVE-подбор пресета ----------
+echo   Шаг 1 - захват адресов приложения/сайта, шаг 2 - тесты пресетов.
+echo.
+echo   1. Захват трафика (exe/домен -^> live-targets.txt)
+echo   2. Подбор пресета (тесты + точечный пресет)
+echo.
+echo   0. Назад
+echo.
+set "lchoice="
+set /p "lchoice=Выбор (0-2): "
+if "%lchoice%"=="1" goto live_watch
+if "%lchoice%"=="2" goto live_pick
+if "%lchoice%"=="0" goto menu
+goto live_m
+
+:live_watch
+start "" powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%utils\watch-app.ps1"
+goto menu
+
+:live_pick
+start "" powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%utils\live-pick.ps1"
+goto menu
 
 
 :: ---------- 9. расширенное меню ----------
@@ -485,6 +662,20 @@ exit /b
 :tcp_enable
 netsh interface tcp show global | findstr /i "timestamps" | findstr /i "enabled" >nul
 if errorlevel 1 netsh interface tcp set global timestamps=enabled >nul 2>&1
+exit /b
+
+:wait_winws
+set "WINWS_OK=0"
+echo Ожидание запуска обхода (до 20 сек, пресеты с обновлением списков стартуют дольше)...
+for /l %%W in (1,1,20) do (
+    tasklist /FI "IMAGENAME eq winws.exe" | find /I "winws.exe" >nul
+    if not errorlevel 1 (
+        set "WINWS_OK=1"
+        goto wait_winws_done
+    )
+    >nul timeout /t 1 /nobreak
+)
+:wait_winws_done
 exit /b
 
 :PrintGreen

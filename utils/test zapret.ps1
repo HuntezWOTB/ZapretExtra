@@ -38,10 +38,10 @@ function Set-IpsetMode {
             Copy-Item $listFile $backupFile -Force
         } else {
             # If none, create empty backup
-            "" | Out-File $backupFile -Encoding UTF8
+            [IO.File]::WriteAllText($backupFile, "", (New-Object System.Text.UTF8Encoding $false))
         }
         # Make file empty
-        "" | Out-File $listFile -Encoding UTF8
+        [IO.File]::WriteAllText($listFile, "", (New-Object System.Text.UTF8Encoding $false))
     } elseif ($mode -eq "restore") {
         if (Test-Path $backupFile) {
             Move-Item $backupFile $listFile -Force
@@ -407,7 +407,7 @@ $dpiTargets = @()
 # Config
 $targetDir = $rootDir
 if (-not $targetDir) { $targetDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
-$batFiles = Get-ChildItem -Path $targetDir -Filter "*.bat" -Recurse | Where-Object { $_.Name -notlike "service*" -and $_.Name -notlike "BUILD-*" -and $_.Name -notlike "ZAPRET*" -and $_.DirectoryName -notlike "*utils*" } | Sort-Object { [Regex]::Replace($_.FullName, "(\d+)", { $args[0].Value.PadLeft(8, "0") }) }
+$batFiles = Get-ChildItem -Path $targetDir -Filter "*.bat" -Recurse | Where-Object { $_.Name -notlike "service*" -and $_.Name -notlike "BUILD-*" -and $_.Name -notlike "ZAPRET*" -and $_.DirectoryName -notlike "*utils*" -and $_.FullName -notlike "*\Apps\*" } | Sort-Object { [Regex]::Replace($_.FullName, "(\d+)", { $args[0].Value.PadLeft(8, "0") }) }
 
 $globalResults = @()
 
@@ -441,7 +441,9 @@ function Read-Profile {
         Write-Host "  [4] Instagram only" -ForegroundColor Gray
         Write-Host "  [5] X (Twitter) only, all domains" -ForegroundColor Gray
         Write-Host "  [6] YouTube only" -ForegroundColor Gray
-        $choice = Read-Host "Enter 0-6"
+        Write-Host "  [7] Telegram only" -ForegroundColor Gray
+        Write-Host "  [8] Facebook (Meta) only" -ForegroundColor Gray
+        $choice = Read-Host "Enter 0-8"
         switch ($choice) {
             '0' { return 'all' }
             '1' { return 'discord' }
@@ -450,6 +452,8 @@ function Read-Profile {
             '4' { return 'instagram' }
             '5' { return 'x' }
             '6' { return 'youtube' }
+            '7' { return 'telegram' }
+            '8' { return 'facebook' }
             default { Write-Host "Incorrect input. Please try again." -ForegroundColor Yellow }
         }
     }
@@ -464,6 +468,8 @@ function Test-TargetInProfile {
     if ($Profile -eq 'instagram') { return ($Name -like 'Instagram*') }
     if ($Profile -eq 'x') { return ($Name -like 'X*' -or $Name -like 'Twitter*' -or $Name -like 'Twimg*') }
     if ($Profile -eq 'youtube') { return ($Name -like 'YouTube*') }
+    if ($Profile -eq 'telegram') { return ($Name -like 'Telegram*') }
+    if ($Profile -eq 'facebook') { return ($Name -like 'Facebook*') }
     return $true
 }
 
@@ -743,6 +749,7 @@ try {
         Set-IpsetMode -mode "any"
         # Create flag file to indicate ipset was switched
         "" | Out-File -FilePath $ipsetFlagFile -Encoding UTF8
+        # NOTE: Out-File UTF8 adds BOM here; flag file content is irrelevant (existence check only).
     }
     Write-Host "[WARNING] Tests may take several minutes to complete. Please wait..." -ForegroundColor Yellow
 
@@ -1138,7 +1145,7 @@ try {
     if ($bestDpiConfig) {
         [void]$resultLines.Add("Best DPI strategy: $bestDpiConfig")
     }
-    $resultLines | Set-Content $resultFile -Encoding UTF8
+    [IO.File]::WriteAllLines($resultFile, @($resultLines), (New-Object System.Text.UTF8Encoding $false))
 
     # Structured JSON for custom preset builder (per-domain winners)
     try {
@@ -1156,7 +1163,8 @@ try {
                 [PSCustomObject]@{ config = $_.Config; type = $_.Type; results = @($_.Results) }
             })
         }
-        $jsonObj | ConvertTo-Json -Depth 6 -Compress | Set-Content $jsonFile -Encoding UTF8
+        $jsonText = $jsonObj | ConvertTo-Json -Depth 6 -Compress
+        [IO.File]::WriteAllText($jsonFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
         Write-Host "JSON saved to $jsonFile" -ForegroundColor DarkGray
     } catch {
         Write-Host "[WARN] Failed to save JSON results: $_" -ForegroundColor Yellow

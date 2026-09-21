@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 > nul
 :: StressOzz youtube-v25 (StressOzz/Zapret-Manager, adapted for winws)
 
@@ -15,5 +15,3 @@ cd /d %BIN%
 
 start "zapret: youtube-v25 (StressOzz)" /min "%BIN%winws.exe" --wf-tcp=443 --wf-udp=443 ^
 --filter-tcp=443 --hostlist="%LISTS%domains\google.txt" --dpi-desync=hostfakesplit --dpi-desync-fooling=badseq,badsum --dpi-desync-hostfakesplit-mod=host=mapgl.2gis.com --dpi-desync-badseq-increment=0
-
-

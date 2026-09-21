@@ -13,7 +13,7 @@ if "%~1"=="check_updates" (
 
     if exist "%~dp0utils\check_updates.enabled" (
         if not "%~2"=="soft" (
-            start /b service check_updates soft
+            start /b "" "%~dp0service.bat" check_updates soft
         ) else (
             call :service_check_updates soft
         )
@@ -239,7 +239,7 @@ set "LISTS_PATH=%~dp0lists\"
 :: Searching for preset .bat files (Presets subfolders + root), except service/manager/builders
 echo Pick one of the options:
 set "count=0"
-for /f "delims=" %%F in ('powershell -NoProfile -Command "Get-ChildItem -LiteralPath '.' -Filter '*.bat' -Recurse | Where-Object { $_.Name -notlike 'service*' -and $_.Name -notlike 'BUILD-*' -and $_.Name -notlike 'ZAPRET*' -and $_.FullName -notlike '*\utils\*' } | Sort-Object { [Regex]::Replace($_.FullName, '(\d+)', { $args[0].Value.PadLeft(8, '0') }) } | ForEach-Object { (Resolve-Path -Relative $_.FullName).Path -replace '^\.\\','' }"') do (
+for /f "delims=" %%F in ('powershell -NoProfile -Command "Get-ChildItem -LiteralPath '.' -Filter '*.bat' -Recurse | Where-Object { $_.Name -notlike 'service*' -and $_.Name -notlike 'BUILD-*' -and $_.Name -notlike 'ZAPRET*' -and $_.Name -notlike 'App-*' -and $_.FullName -notlike '*\utils\*' -and $_.FullName -notlike '*\Apps\*' } | Sort-Object { [Regex]::Replace($_.FullName, '(\d+)', { $args[0].Value.PadLeft(8, '0') }) } | ForEach-Object { (Resolve-Path -Relative $_.FullName).Path -replace '^\.\\','' }"') do (
     set /a count+=1
     echo   !count!. %%F
     set "file!count!=%%F"
