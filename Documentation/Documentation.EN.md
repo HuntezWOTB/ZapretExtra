@@ -1,4 +1,4 @@
-# ZapretExtra v1.00 — full documentation (EN)
+# ZapretExtra v1.01 — full documentation (EN)
 
 > [Русская версия](Documentation.RU.md) · [Home](../README.md)
 
@@ -12,19 +12,20 @@
 6. [service.bat (extended menu)](#6-servicebat-extended-menu)
 7. [Strategy tests](#7-strategy-tests)
 8. [Preset builder](#8-preset-builder)
-9. [Domains and ipsets lists](#9-domains-and-ipsets-lists)
-10. [Binaries and fakes](#10-binaries-and-fakes)
-11. [Updates](#11-updates)
-12. [Windows service](#12-windows-service)
-13. [Diagnostics and FAQ](#13-diagnostics-and-faq)
-14. [Attribution and license](#14-attribution-and-license)
-15. [Changelog](#15-changelog)
+9. [LIVE preset picker](#9-live-preset-picker)
+10. [Domains and ipsets lists](#10-domains-and-ipsets-lists)
+11. [Binaries and fakes](#11-binaries-and-fakes)
+12. [Updates](#12-updates)
+13. [Windows service](#13-windows-service)
+14. [Diagnostics and FAQ](#14-diagnostics-and-faq)
+15. [Attribution and license](#15-attribution-and-license)
+16. [Changelog](#16-changelog)
 
 ---
 
 ## 1. What is this
 
-**ZapretExtra v1.00** is an extended Windows bundle for bypassing DPI blocks
+**ZapretExtra v1.01** is an extended Windows bundle for bypassing DPI blocks
 (user-space, via WinDivert + winws). Built on top of
 [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube)
 (base 1.10.3) and extended with:
@@ -36,7 +37,13 @@
   (v1–v10 and YouTube v01–v27, strategy texts adapted for winws);
 - a Russian manager `ZAPRET.bat` (menu items are in Russian; this doc covers them);
 - profiled tests and a test-driven personal preset builder;
-- per-service domain and subnet lists.
+- per-service domain and subnet lists;
+- a LIVE preset picker for an app/site (item 11: capture → test → point
+  preset, see §9);
+- blocked categories (Telegram/Twitter/Facebook get own files,
+  WhatsApp/OpenAI/Netflix/TikTok live in `general.txt`, no duplicates) and
+  auto-refresh of major services' IP ranges (Telegram/Facebook/Twitter via
+  RIPEstat, Amazon/CloudFront from official lists).
 
 59 presets out of the box, plus as many as you build yourself.
 
@@ -51,7 +58,7 @@
 3. **Antivirus.** Add the folder to exclusions: `WinDivert.sys`/`.dll` are
    flagged as RiskTool/HackTool — standard for traffic interception, not a virus.
 4. **DNS.** Enable secure DNS (DoH): in your browser or in Windows 11
-   settings. Some substitutions cannot be fixed without it (see §13).
+   settings. Some substitutions cannot be fixed without it (see §14).
 5. **Run.** Just start **`ZAPRET.bat`** (admin rights are requested
    automatically):
    - item **6** → run the tests → find your working strategy;
@@ -68,7 +75,10 @@ ZapretExtra/
 ├── ZAPRET.bat                # main manager (Russian menu, OEM 866)
 ├── service.bat               # extended original menu
 ├── BUILD-CUSTOM-PRESET.bat   # builder launcher
-├── update-aws.ps1            # refreshes the AWS list from GitHub
+├── Apps/                     # per-app launcher bats (item 10)
+├── update-aws.ps1            # refreshes Amazon (official) + CloudFront
+├── utils/update-blocklists.ps1  # blocked domains (merge/check)
+├── utils/update-service-ips.ps1 # Telegram/Facebook/Twitter IP ranges
 ├── LICENSE.txt / ATTRIBUTION.md / README*.txt / .gitattributes
 ├── Presets/
 │   ├── Flowseal/             # 22 general* strategies
@@ -81,14 +91,19 @@ ZapretExtra/
 │   └── quic_initial/         # QUIC Initial fakes
 ├── lists/
 │   ├── domains/              # discord, google, cloudflare, amazon,
-│   │                         # instagram, general (+user/exclude)
-│   └── ipsets/               # all, cloudflare, amazon, exclude (+user),
-│                             # resolved/ — resolution snapshots
+│   │                         # instagram, telegram, twitter, facebook,
+│   │                         # general (+user/exclude)
+│   └── ipsets/               # all, cloudflare, amazon, cloudfront,
+│                             # telegram, facebook, twitter, exclude (+user),
+│                             # discord/google/instagram/general.txt — snapshots
 └── utils/
     ├── test zapret.ps1       # tests (modes/profiles/limits)
-    ├── targets.txt           # 51 test targets
+    ├── targets.txt           # 59 test targets
+    ├── watch-app.ps1         # LIVE step 1: traffic capture
+    ├── live-pick.ps1         # LIVE step 2: pick + point preset
+    ├── live results/         # ranked LIVE attempts
     ├── build-custom-preset.ps1  # builder
-    ├── build-service-ipsets.ps1 # resolve domains into ipsets/resolved/
+    ├── build-service-ipsets.ps1 # resolve domains into ipsets/<service>.txt
     ├── convert-preset.ps1    # normalize any .bat to root-relative form
     ├── convert-stressozz.ps1 # rebuild StressOzz presets from GitHub
     ├── sync-presets.ps1      # preset update checker
@@ -109,7 +124,8 @@ Classic `general*.bat` (base 1.10.3): multisplit / fake+fakesplit /
 hostfakesplit / FAKE TLS AUTO / SIMPLE FAKE + EXP, ALT–ALT13. All include:
 AWS list auto-update, `444-65535` WFP ports, Cloudflare filters
 (`ipsets\cloudflare.txt`, same strategy as `all.txt`) and Amazon filters
-(`ipsets\amazon.txt`, fake+autottl).
+(`ipsets\amazon.txt`, fake+autottl). The general lines (TCP 80,443 and
+UDP 443) also carry `telegram.txt`, `twitter.txt`, `facebook.txt`.
 
 ### 4.2. StressOzz (37, `Presets\StressOzz\`)
 
@@ -134,7 +150,7 @@ them up automatically.
 
 ## 5. ZAPRET.bat manager
 
-Main menu (in Russian, 9 items + exit):
+Main menu (in Russian, 11 items + exit):
 
 1. **Run preset** — temporarily: pick from all 59+ (grouped by author) →
    run → press any key → `winws.exe` is killed. Warns if the service runs.
@@ -144,13 +160,27 @@ Main menu (in Russian, 9 items + exit):
 3. **Remove service** — `zapret` + `winws` + WinDivert cleanup.
 4. **Status** — service, process, WinDivert, current preset.
 5. **Updates** — Flowseal version; downloads new author `.bat`s from GitHub
-   (new files are auto-normalized); refreshes the AWS list.
+   (new files are auto-normalized and get the new hostlists); refreshes
+   AWS + CloudFront; refreshes blocked domains (`update-blocklists.ps1`:
+   merge/check over 12 sources); refreshes Telegram/Facebook/Twitter IP
+   ranges (`update-service-ips.ps1`, RIPEstat).
 6. **Tests** — submenu: Standard / DPI / Combined (see §7).
 7. **Builder** — `BUILD-CUSTOM-PRESET.bat` (see §8).
 8. **Settings** — Game Filter on/off, IPSet `loaded/none/any`, update check
-   on/off, manual AWS refresh.
+   on/off, manual IP-list refresh.
 9. **Extended menu** — opens `service.bat` (diagnostics, fake swapping,
    hosts, etc.).
+10. **App via bypass** — run any `.exe` through a chosen preset
+    (temporary, stops on keypress; last path remembered) and generate
+    `Apps\App-<name>.bat` launchers (double-click). Checks: exe exists,
+    up to 20 s wait for `winws` with a warning, app start. A standalone
+    portable `Generate_Start_App_Via_Preset.bat` (touches nothing in the
+    release) picks exe + preset via Explorer windows and writes
+    `<Exe>_ZapretExtra_<Preset>.bat` into `Generated_BatPreset_for_App\`.
+    Honest note: winws has no per-process filter, the bypass is
+    system-wide while the session runs.
+11. **LIVE picker** — dynamic preset picking for an app/site (see §9):
+    traffic capture → testing → point preset.
 
 > Technical note: the file is OEM 866 encoded (cmd.exe mangles Cyrillic in
 > UTF-8). Edit only via the UTF-8 → edit → 866 cycle.
@@ -179,7 +209,8 @@ Best config and Best DPI config are picked).
 
 **Profiles:** All, Discord (signalling+media; voice/screen-share go through
 UDP L7 filters identical in all presets), Cloudflare (11 servers), Amazon
-(11), Instagram (5), X/Twitter (10), YouTube (4). 51 targets total
+(11), Instagram (5), X/Twitter (10), YouTube (4), Telegram (4),
+Facebook (4). 59 targets total
 (`utils\targets.txt`, keys are single words).
 
 **Limits** (asked before the run, `0` = no limit; or env
@@ -212,34 +243,69 @@ and hints which test to run — no need to memorize anything.
 **Output** (into `Presets\Custom\`):
 - `preset-aws-only / cloudflare-only / aws-cloudflare (AUTO …).bat` —
   one file per family: pinpoint `--hostlist-domains=` lines for each working
-  domain (its winner's strategy) + filters over `*-alive.txt` (working IPs
-  as `/32`; FULL-FALLBACK to the full list if none — an empty ipset means
-  “any” mode, so fallback is mandatory);
+  domain (its winner's strategy) + filters over the full range lists
+  (`amazon.txt` / `cloudflare.txt`);
 - `custom (AUTO …).bat` — full hybrid.
 - Then: retest the build (picked up automatically) → install.
 
 ---
 
-## 9. Domains and ipsets lists
+## 9. LIVE preset picker (item 11)
 
-`lists\domains\`: `discord` (25), `google` (24, incl. old list-google),
-`cloudflare` (33), `amazon` (8), `instagram` (7, new), `general` (33, the
-rest) + `general-user` (your domains), `exclude/exclude-user`. Presets cover
-them as a union (verified; old flat files removed).
+Dynamic picking for a specific app or site (e.g. a game on AWS/Cloudflare):
+capture real traffic -> test presets against captured endpoints ->
+point preset.
 
-`lists\ipsets\`: `all` (+backup, loaded/none/any modes), `cloudflare`
-(9154 author ranges), `amazon` (2810, updated), `exclude(+user)`,
-`resolved\<service>` — domain-resolution snapshots
-(`utils\build-service-ipsets.ps1`, discord 80 … instagram 8; `/32`+`/128`;
-unresolvable names are printed — usually dead ones). Resolved files are not
-wired anywhere yet (a stub for future pinpoint filters).
+**Step 1 — capture** (`utils\watch-app.ps1`): by `.exe` name (polls the
+process connections; 10-300 s, default 45 — 15 s is enough for a quick
+"did the images load?" check) or by domain/IP manually. Outputs
+`utils\live-targets.txt` (targets) + `utils\live-capture.json`.
+Per-domain detail: hits, ports, ping, TCP connect, HTTP check (code +
+time — shows whether content actually loads), OK/SUSPECT verdict, net tag
+(CloudFront/AWS/Telegram/Facebook/Twitter/known:<service>), CNAME chain
+(shows which CDN a domain really sits on).
+
+**Step 2 — pick** (`utils\live-pick.ps1`): quick top-12 / manual / all
+presets. Auto metrics (HTTP, ping, TCP) + your score after trying the
+game live (soak time configurable, default 20 s). All attempts accumulate
+in `utils\live results\` with a ranking; the winner builds
+`Presets\Custom\preset-point (AUTO …).bat` — narrow filters only for
+captured hosts (+leading CloudFront/Telegram blocks over matched CIDRs:
+IPs rotate, ranges don't).
+Honest note: UDP endpoints have no auto-probe (TCP-connect to a UDP port
+is meaningless) — your score is the only oracle for them. Picking briefly
+stops the running winws and restores it afterwards (works with the service
+too, asks for confirmation).
+
+---
+## 10. Domains and ipsets lists
+
+`lists\domains\`: `discord` (26), `google` (187, incl. regional YouTubes),
+`cloudflare` (46), `amazon` (106), `instagram` (7), `telegram` (21),
+`twitter` (24), `facebook` (18, curated infra), `general` (127, incl.
+WhatsApp/OpenAI/Netflix/TikTok) + `general-user` (your domains),
+`exclude/exclude-user`. No duplicates across files (audited); presets cover
+them as a union.
+
+`lists\ipsets\`: `all` (loaded/none/any modes; the old `.backup` is gone —
+switching back to `loaded` re-downloads the list from the Flowseal repo),
+`cloudflare` (9154 author ranges), `amazon` (official AWS ranges + cache),
+`cloudfront` (211 official CIDRs), `telegram` (24, AS62041),
+`facebook` (240, AS32934), `twitter` (27, AS13414 — all via RIPEstat),
+`exclude(+user)`,
+`discord/google/instagram/general.txt` — per-service IP snapshots
+(`utils\build-service-ipsets.ps1`; `/32`+`/128`;
+unresolvable names are printed — usually dead ones). The files feed
+the known-IP oracle of `utils\watch-app.ps1` (`known:<service>` tag)
+and work as selective `--ipset` for pinpoint presets;
+they are not merged into range lists (they go stale).
 
 ---
 
-## 10. Binaries and fakes
+## 11. Binaries and fakes
 
 `bin\`: `winws.exe`, `WinDivert.*`, `cygwin1.dll`, `ACTIVE_*.bin`,
-`stun*.bin` + `tls_clienthello/` (12) and `quic_initial/` (13) subfolders.
+`stun*.bin` + `tls_clienthello/` (14) and `quic_initial/` (14) subfolders.
 `utils\make-fake-bin.ps1` generates fakes for new domains: TLS = real SNI
 patch with length fixes (byte-identical self-test); QUIC Initial is
 encrypted (SNI invisible) — valid 1200-byte variants with random DCID.
@@ -247,19 +313,26 @@ Swap active fakes via the menu.
 
 ---
 
-## 11. Updates
+## 12. Updates
 
 - Manager item 5 → `utils\sync-presets.ps1`: Flowseal version; new author
   `.bat`s from GitHub roots; for StressOzz (strategies live in `.md`)
   `utils\convert-stressozz.ps1` rebuilds v/youtube presets. Downloads are
   normalized via `convert-preset.ps1`. Repo links live in
   `Presets\<author>\repo.url`.
-- AWS list: `update-aws.ps1` (runs on every Flowseal preset start).
+- AWS and CloudFront: `update-aws.ps1` (runs on every Flowseal preset start;
+  Amazon = official AMAZON+EC2 + cache, CloudFront = official list with
+  `ip-ranges.json` fallback).
+- Blocked domains: `utils\update-blocklists.ps1` (12 v2fly/domain-list-community
+  sources: merge what's missing, check-only for Facebook; google/ads,
+  spam, steam/twitch and 700k lists deliberately skipped).
+- Service IP ranges: `utils\update-service-ips.ps1` (Telegram, Facebook,
+  Twitter via RIPEstat announced-prefixes).
 - `all.txt` IPSet: service.bat menu item.
 
 ---
 
-## 12. Windows service
+## 13. Windows service
 
 Service name is `zapret` (do not change: tests and WinDivert depend on it).
 Install — manager item 2 / service.bat: arg parsing, `timestamps=enabled`,
@@ -269,7 +342,7 @@ the service, `winws.exe`, `WinDivert/WinDivert14`.
 
 ---
 
-## 13. Diagnostics and FAQ
+## 14. Diagnostics and FAQ
 
 - **Nothing works** — service.bat → Diagnostics; secure DNS; other
   strategies; `netsh winsock reset` + `netsh int ip reset` +
@@ -288,20 +361,28 @@ the service, `winws.exe`, `WinDivert/WinDivert14`.
 
 ---
 
-## 14. Attribution and license
+## 15. Attribution and license
 
 See [ATTRIBUTION.md](../ATTRIBUTION.md) and [LICENSE.txt](../LICENSE.txt)
 (MIT; bol-van/zapret binaries, WinDivert — LGPLv3/GPLv2 at your choice).
 Base — Flowseal/zapret-discord-youtube; AWS/Cloudflare materials —
 fallonightcorp/zapret-aws-cloudflare; v1–v10/Yv texts — StressOzz;
 DPI test set — hyperion-cs/dpi-checkers (Apache-2.0, fetched at runtime,
-not redistributed). Everything is used with links and licenses;
+not redistributed); domain categories — v2fly/domain-list-community
+(MIT, aggregated by runetfreedom); service IP ranges — RIPEstat.
+Everything is used with links and licenses;
 rights holders — please open an issue.
 
 ---
 
-## 15. Changelog
+## 16. Changelog
 
+- **1.01** — LIVE picker (traffic capture + testing + point presets),
+  blocked categories (Telegram/Twitter/Facebook get own files;
+  WhatsApp/OpenAI/Netflix/TikTok go to `general.txt`; owned top-ups),
+  Telegram/Facebook/Twitter IP ranges (RIPEstat) + CloudFront,
+  Amazon from the official source, duplicate cleanup and `PS 5.1`
+  encoding fixes, Telegram/Facebook tests (profiles 7–8).
 - **1.00** — first public ZapretExtra release: 59 presets (Flowseal 22 +
   StressOzz 37), manager, tests (3 modes, 6 profiles, limits), builder
   (hybrid + 3 families), per-service lists, per-domain fakes, GitHub
