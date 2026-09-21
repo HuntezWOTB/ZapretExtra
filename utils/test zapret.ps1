@@ -282,16 +282,20 @@ function Invoke-DpiSuite {
     }
 
     $results = @()
+    $dpiTotal = $runspaces.Count
+    $dpiDone = 0
+    $dpiGuard = 0
     foreach ($rs in $runspaces) {
-        # Wait for the runspace to complete with a small grace period beyond curl's timeout
+        $dpiTimedOut = $false
+        # Wait for the runspace to complete with a grace period beyond curl's timeout
         try {
-            # 3 probes x timeout + grace (see standard-wait comment above)
-            $waitMs = (([int]$TimeoutSeconds * 3) + 12) * 1000
+            # 3 probes x timeout + wide grace for DNS stalls (kills are silent)
+            $waitMs = (([int]$TimeoutSeconds * 3) + 15) * 1000
             $handle = $rs.Handle
             if ($handle -and $handle.AsyncWaitHandle) {
                 $completed = $handle.AsyncWaitHandle.WaitOne($waitMs)
                 if (-not $completed) {
-                    Write-Host "[WARN] Runspace for [$($rs.TargetId)] timed out after $waitMs ms; stopping runspace..." -ForegroundColor Yellow
+                    $dpiTimedOut = $true
                     try { $rs.Powershell.Stop() } catch {}
                 }
             }
@@ -303,7 +307,8 @@ function Invoke-DpiSuite {
             $res = $rs.Powershell.EndInvoke($rs.Handle)
             $results += $res
 
-            Write-Host "`n=== [$($res.Country)][$($res.Provider)] $($res.TargetId) ===" -ForegroundColor DarkCyan
+            $dpiDone++
+            Write-Host ("`n=== [{0}/{1}] [{2}][{3}] {4} ===" -f $dpiDone, $dpiTotal, $res.Country, $res.Provider, $res.TargetId) -ForegroundColor DarkCyan
             foreach ($line in $res.Lines) {
                 $msg = "[{0}] code={1} buf_up={2} bytes ({3} KB) buf_down={4} bytes ({5} KB) time={6}s status={7}" -f $line.TestLabel, $line.Code, $line.UpBytes, $line.UpKB, $line.DownBytes, $line.DownKB, $line.Time, $line.Status
                 Write-Host $msg -ForegroundColor $line.Color
@@ -318,7 +323,7 @@ function Invoke-DpiSuite {
                 Write-Host "  No 16-20KB freeze pattern for this target." -ForegroundColor Green
             }
         } catch {
-            Write-Host "[WARN] EndInvoke failed for a runspace; treating as failure." -ForegroundColor Yellow
+            $dpiDone++
             $failedLine = [PSCustomObject]@{
                 TestLabel  = 'RUNSPACE'
                 Code       = 'ERR'
@@ -328,13 +333,19 @@ function Invoke-DpiSuite {
                 Color      = 'Red'
                 Warned     = $false
             }
-            $results += [PSCustomObject]@{ TargetId = 'UNKNOWN'; Provider = 'UNKNOWN'; Lines = @($failedLine); Warned = $false }
+            $results += [PSCustomObject]@{ TargetId = $rs.TargetId; Provider = 'UNKNOWN'; Lines = @($failedLine); Warned = $false }
+            $dpiTimedOut = $true
         }
+        if ($dpiTimedOut) { $dpiGuard++ }
         $rs.Powershell.Dispose()
     }
     $runspacePool.Close()
     $runspacePool.Dispose()
     Remove-Item -LiteralPath $payloadFile -Force -ErrorAction SilentlyContinue
+
+    if ($dpiGuard -gt 0) {
+        Write-Host ("[note] {0} DPI target(s) hit the guard and were counted as FAIL." -f $dpiGuard) -ForegroundColor DarkGray
+    }
 
     if ($warnDetected) {
         Write-Host ""
@@ -913,24 +924,28 @@ try {
             $runspaces += [PSCustomObject]@{
                 Powershell = $ps
                 Handle     = $ps.BeginInvoke()
+                Name       = $target.Name
             }
         }
 
-        $script:currentLine = "  > Running tests..."
-        Write-Host $script:currentLine -ForegroundColor DarkGray
-
+        # Streaming progress: each target prints as it completes, with [done/total %].
         $targetResults = @()
+        $guardFails = 0
+        $done = 0
+        $total = $runspaces.Count
+        $cfgTimer = [Diagnostics.Stopwatch]::StartNew()
         foreach ($rs in $runspaces) {
+            $timedOut = $false
             try {
                 # Budget must cover worst case per target: 4 curl probes x timeout
-                # + 4 ping echoes x 1s + process overhead. Undersized budget caused
-                # false "runspace timed out" kills on slow/blocked targets.
-                $waitMs = (([int]$curlTimeoutSeconds * 4) + 12) * 1000
+                # + DNS stalls + 4 ping echoes + overhead. On guard hit the
+                # runspace is stopped SILENTLY (no WARN spam) and counted below.
+                $waitMs = (([int]$curlTimeoutSeconds * 4) + 24) * 1000
                 $handle = $rs.Handle
                 if ($handle -and $handle.AsyncWaitHandle) {
                     $completed = $handle.AsyncWaitHandle.WaitOne($waitMs)
                     if (-not $completed) {
-                        Write-Host "[WARN] Runspace for target timed out after $waitMs ms; stopping runspace..." -ForegroundColor Yellow
+                        $timedOut = $true
                         try { $rs.Powershell.Stop() } catch {}
                     }
                 }
@@ -939,25 +954,20 @@ try {
             }
 
             try {
-                $targetResults += $rs.Powershell.EndInvoke($rs.Handle)
+                $res = $rs.Powershell.EndInvoke($rs.Handle)
             } catch {
-                Write-Host "[WARN] EndInvoke failed for a runspace; treating as failure." -ForegroundColor Yellow
-                $targetResults += [PSCustomObject]@{ Name = 'UNKNOWN'; HttpTokens = @('HTTP:ERROR'); PingResult = 'Timeout'; IsUrl = $true }
+                # silent: counted as failure below
+                $res = [PSCustomObject]@{ Name = $rs.Name; HttpTokens = @('HTTP:ERROR'); PingResult = 'Timeout'; IsUrl = $true }
             }
+            if ($timedOut) { $guardFails++ }
             $rs.Powershell.Dispose()
-        }
 
-        $runspacePool.Close()
-        $runspacePool.Dispose()
+            $targetResults += $res
+            $done++
+            $pct = [int]($done * 100 / $total)
+            Write-Progress -Activity "Standard probes" -Status ("{0}/{1} ({2}%) {3}s" -f $done, $total, $pct, [int]$cfgTimer.Elapsed.TotalSeconds) -PercentComplete $pct
 
-        $targetLookup = @{}
-        foreach ($res in $targetResults) { $targetLookup[$res.Name] = $res }
-
-        foreach ($target in $targetList) {
-            $res = $targetLookup[$target.Name]
-            if (-not $res) { continue }
-
-            Write-Host "  $($target.Name.PadRight($maxNameLen))    " -NoNewline
+            Write-Host ("  [{0}/{1} {2}%] {3}    " -f $done, $total, $pct, $res.Name.PadRight($maxNameLen)) -NoNewline
 
             if ($res.IsUrl -and $res.HttpTokens) {
                 foreach ($tok in $res.HttpTokens) {
@@ -987,6 +997,11 @@ try {
                 Write-Host "$($res.PingResult)" -ForegroundColor $pingColor
             }
 
+        }
+
+        Write-Progress -Activity "Standard probes" -Completed
+        if ($guardFails -gt 0) {
+            Write-Host ("  [note] {0} target(s) hit the {1}s guard and were counted as ERROR." -f $guardFails, ($waitMs / 1000)) -ForegroundColor DarkGray
         }
 
         $globalResults += @{ Config = $cfgKey; Type = 'standard'; Results = $targetResults }
