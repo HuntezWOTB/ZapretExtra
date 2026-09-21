@@ -1,4 +1,4 @@
-# ZapretExtra v1.01 — full documentation (EN)
+# ZapretExtra v1.02 — full documentation (EN)
 
 > [Русская версия](Documentation.RU.md) · [Home](../README.md)
 
@@ -25,7 +25,7 @@
 
 ## 1. What is this
 
-**ZapretExtra v1.01** is an extended Windows bundle for bypassing DPI blocks
+**ZapretExtra v1.02** is an extended Windows bundle for bypassing DPI blocks
 (user-space, via WinDivert + winws). Built on top of
 [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube)
 (base 1.10.3) and extended with:
@@ -75,6 +75,7 @@ ZapretExtra/
 ├── ZAPRET.bat                # main manager (Russian menu, OEM 866)
 ├── service.bat               # extended original menu
 ├── BUILD-CUSTOM-PRESET.bat   # builder launcher
+├── CONVERT-OPENWRT.bat      # preset -> _openwrt.txt for routers
 ├── Apps/                     # per-app launcher bats (item 10)
 ├── update-aws.ps1            # refreshes Amazon (official) + CloudFront
 ├── utils/update-blocklists.ps1  # blocked domains (merge/check)
@@ -146,11 +147,20 @@ The builder puts `preset-aws-only / cloudflare-only / aws-cloudflare /
 custom (AUTO <date>).bat` here. Manager, tests and service install pick
 them up automatically.
 
+Router conversion (OpenWRT): `CONVERT-OPENWRT.bat` (or manager item 12)
+opens a file picker and writes `<name>_openwrt.txt` next to the preset —
+pure quoteless winws arguments (the NFQWS field rejects quotes; wrapper
+stripped, paths as `/opt/zapret/...`, WinDivert `--wf-*` moved to the
+header as ports) + a Russian step-by-step upload guide
+(`utils\openwrt-upload-ru.txt`: WinSCP, `/opt/zapret`, NFQWS_OPT field
+in Zapret-Manager_for_LuCI). Paste the content into the zapret preset
+field on your router.
+
 ---
 
 ## 5. ZAPRET.bat manager
 
-Main menu (in Russian, 11 items + exit):
+Main menu (in Russian, 12 items + exit):
 
 1. **Run preset** — temporarily: pick from all 59+ (grouped by author) →
    run → press any key → `winws.exe` is killed. Warns if the service runs.
@@ -181,6 +191,10 @@ Main menu (in Russian, 11 items + exit):
     system-wide while the session runs.
 11. **LIVE picker** — dynamic preset picking for an app/site (see §9):
     traffic capture → testing → point preset.
+12. **Router converter** — file-picker preset selection →
+    `<name>_openwrt.txt` (quoteless clean args + Russian upload guide
+    for OpenWRT with Zapret-Manager_for_LuCI: WinSCP, `/opt/zapret`,
+    NFQWS_OPT field).
 
 > Technical note: the file is OEM 866 encoded (cmd.exe mangles Cyrillic in
 > UTF-8). Edit only via the UTF-8 → edit → 866 cycle.
@@ -377,6 +391,9 @@ rights holders — please open an issue.
 
 ## 16. Changelog
 
+- **1.02** — router converter (item 12, file picker, quoteless
+  `_openwrt.txt` + Russian WinSCP/NFQWS_OPT upload guide),
+  OpenWRT chain localization.
 - **1.01** — LIVE picker (traffic capture + testing + point presets),
   blocked categories (Telegram/Twitter/Facebook get own files;
   WhatsApp/OpenAI/Netflix/TikTok go to `general.txt`; owned top-ups),

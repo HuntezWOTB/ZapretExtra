@@ -1,6 +1,6 @@
-# ZapretExtra v1.01
+# ZapretExtra v1.02
 
-![version](https://img.shields.io/badge/version-1.01-blue)
+![version](https://img.shields.io/badge/version-1.02-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -20,6 +20,7 @@ Amazon), LIVE-подбор пресета под приложение/сайт �
 
 - **59 пресетов**: 22 Flowseal (с интеграцией Cloudflare + Amazon) + 37 StressOzz (v1–v10, YouTube v01–v27) + ваши собранные
 - **LIVE-подбор (пункт 11)**: захват трафика приложения/сайта → перебор пресетов → точечный пресет с рейтингом
+- **Конвертер под роутер (пункт 12)**: выбор пресета → `_openwrt.txt` с готовыми аргументами и русской инструкцией по заливке на OpenWRT
 - **ZAPRET.bat** — русское меню: запуск, служба-автозапуск, обновления с GitHub, тесты, конструктор, настройки, запуск приложений через обход
 - **Тесты в 3 режимах** (Standard / DPI / Combined) и 8 профилях, с лимитами времени и пинга
 - **Конструктор пресетов** — гибрид и семейные пресеты (AWS / Cloudflare / combined) только из рабочих серверов
@@ -46,6 +47,7 @@ ZapretExtra/
 ├── ZAPRET.bat            # главный менеджер (русское меню)
 ├── service.bat           # расширенное меню (диагностика, фейки, hosts)
 ├── BUILD-CUSTOM-PRESET.bat
+├── CONVERT-OPENWRT.bat     # выбор пресета -> _openwrt.txt для роутера
 ├── update-aws.ps1        # Amazon (офиц.) + CloudFront
 ├── Apps/                 # ваши bat-лаунчеры приложений через обход
 ├── Presets/

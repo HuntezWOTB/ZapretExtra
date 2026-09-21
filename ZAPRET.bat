@@ -14,7 +14,7 @@ set "PRESETS=%~dp0Presets\"
 set "BIN=%~dp0bin\"
 set "LISTS=%~dp0lists\"
 set "LOCAL_VER=1.10.3"
-set "EXTRA_VER=1.01"
+set "EXTRA_VER=1.02"
 set "empty=0"
 title ZapretExtra v%EXTRA_VER% Manager
 
@@ -43,10 +43,11 @@ echo   9. Расширенное меню (service.bat)
 echo   10. Приложение через обход (.exe + свой bat)
 echo   11. LIVE-подбор: захват трафика + подбор пресета
 echo.
+echo   12. Конвертер под роутер (OpenWRT)
 echo   0. Выход
 echo.
 set "mchoice="
-set /p "mchoice=Выберите пункт (0-11): "
+set /p "mchoice=Выберите пункт (0-12): "
 if "%mchoice%"=="" (
     set /a empty+=1
     if !empty! GEQ 5 exit /b
@@ -64,6 +65,7 @@ if "%mchoice%"=="8" goto settings_m
 if "%mchoice%"=="9" goto advanced_m
 if "%mchoice%"=="10" goto apps_m
 if "%mchoice%"=="11" goto live_m
+if "%mchoice%"=="12" goto openwrt_m
 if "%mchoice%"=="0" exit /b
 goto menu
 
@@ -570,6 +572,10 @@ goto menu
 
 
 :: ---------- 11. LIVE-подбор пресета ----------
+:openwrt_m
+start "" powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%utils\convert-openwrt.ps1"
+goto menu
+
 :live_m
 cls
 echo.

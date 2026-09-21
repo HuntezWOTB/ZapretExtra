@@ -1,4 +1,4 @@
-# ZapretExtra v1.01 — полная документация (RU)
+# ZapretExtra v1.02 — полная документация (RU)
 
 > [English version](Documentation.EN.md) · [На главную](../README.md)
 
@@ -25,7 +25,7 @@
 
 ## 1. Что это
 
-**ZapretExtra v1.01** — усиленная Windows-сборка для обхода DPI-блокировок
+**ZapretExtra v1.02** — усиленная Windows-сборка для обхода DPI-блокировок
 (программный уровень, через WinDivert + winws). Собрана на основе
 [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube)
 (base 1.10.3) и дополнена:
@@ -76,6 +76,7 @@ ZapretExtra/
 ├── ZAPRET.bat                # главный менеджер (русское меню, OEM 866)
 ├── service.bat               # расширенное меню оригинала
 ├── BUILD-CUSTOM-PRESET.bat   # лаунчер конструктора
+├── CONVERT-OPENWRT.bat      # пресет -> _openwrt.txt для роутера
 ├── Apps/                     # bat-лаунчеры приложений (пункт 10)
 ├── update-aws.ps1            # обновление Amazon (офиц.) + CloudFront
 ├── utils/update-blocklists.ps1  # домены блоклистов (merge/check)
@@ -147,11 +148,20 @@ Cloudflare (`ipsets\cloudflare.txt`, стратегия как у `all.txt`) и 
 aws-cloudflare / custom (AUTO <дата>).bat`. Менеджер, тесты и установка
 службой видят их автоматически.
 
+Конвертация под роутер (OpenWRT): `CONVERT-OPENWRT.bat` (или пункт 12
+менеджера) открывает окно выбора пресета и пишет рядом
+`<имя>_openwrt.txt` — чистые аргументы winws без кавычек (поле NFQWS
+на роутере их не принимает; обёртка убрана, пути — `/opt/zapret/...`,
+WinDivert `--wf-*` вынесены портами в шапку) + русская пошаговая
+инструкция по заливке (`utils\openwrt-upload-ru.txt`: WinSCP,
+`/opt/zapret`, поле NFQWS_OPT в Zapret-Manager_for_LuCI).
+Содержимое вставляется в поле пресета zapret на роутере.
+
 ---
 
 ## 5. Менеджер ZAPRET.bat
 
-Главное меню (русское, 11 пунктов + выход):
+Главное меню (русское, 12 пунктов + выход):
 
 1. **Запустить пресет** — временно: выбор из всех 59+ (с группировкой
    по авторам) → запуск → ожидание клавиши → остановка `winws.exe`.
@@ -184,6 +194,10 @@ aws-cloudflare / custom (AUTO <дата>).bat`. Менеджер, тесты и 
     действует системно.
 11. **LIVE-подбор** — динамический подбор пресета под приложение/сайт
     (см. п.9): захват трафика → перебор → точечный пресет.
+12. **Конвертер под роутер** — выбор пресета окном проводника →
+    `<имя>_openwrt.txt` (чистые аргументы без кавычек + русская инструкция
+    по заливке на OpenWRT с Zapret-Manager_for_LuCI: WinSCP, `/opt/zapret`,
+    поле NFQWS_OPT).
 
 > Техническое: файл в кодировке OEM 866 (иначе cmd.exe портит кириллицу).
 > Править — только через цикл UTF-8 → правка → 866.
@@ -383,6 +397,9 @@ v2fly/domain-list-community (MIT, агрегатор runetfreedom); IP-диап�
 
 ## 16. История версий
 
+- **1.02** — конвертер под роутер (пункт 12, окно выбора, `_openwrt.txt`
+  без кавычек + русская инструкция по заливке через WinSCP/NFQWS_OPT),
+  локализация OpenWRT-цепочки.
 - **1.01** — LIVE-подбор (захват трафика + перебор + point-пресеты),
   заблокированные категории (Telegram/Twitter/Facebook — свои файлы;
   WhatsApp/OpenAI/Netflix/TikTok — в `general.txt`; топ-апы своих),
