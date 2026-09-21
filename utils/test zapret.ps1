@@ -285,7 +285,8 @@ function Invoke-DpiSuite {
     foreach ($rs in $runspaces) {
         # Wait for the runspace to complete with a small grace period beyond curl's timeout
         try {
-            $waitMs = (([int]$TimeoutSeconds * 3) + 5) * 1000
+            # 3 probes x timeout + grace (see standard-wait comment above)
+            $waitMs = (([int]$TimeoutSeconds * 3) + 12) * 1000
             $handle = $rs.Handle
             if ($handle -and $handle.AsyncWaitHandle) {
                 $completed = $handle.AsyncWaitHandle.WaitOne($waitMs)
@@ -489,7 +490,9 @@ function Read-Limits {
         $in = Read-Host "Max ping in ms (default: 100, 0 = no limit)"
         if ($in -match '^\d+$') { $ping = [int]$in }
     }
-    Write-Host "[INFO] Limits: response >$resp s = TIMEENDED, ping >$ping ms = SLOW" -ForegroundColor Cyan
+    $respTxt = if ($resp -gt 0) { "response >${resp}s = TIMEENDED" } else { "response: no limit" }
+    $pingTxt = if ($ping -gt 0) { "ping >${ping}ms = SLOW" } else { "ping: no limit" }
+    Write-Host ("[INFO] Limits: {0}, {1}" -f $respTxt, $pingTxt) -ForegroundColor Cyan
     return @{ RespSec = $resp; PingMs = $ping }
 }
 
@@ -741,6 +744,9 @@ Write-Host "                 Profile: $($testProfile.ToUpper())" -ForegroundColo
 }
 Write-Host "                 Total configs: $($batFiles.Count.ToString().PadLeft(2))" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
+if (($testType -eq 'standard' -or $testType -eq 'combined') -and ($targetList.Count -gt 25 -and $batFiles.Count -gt 15)) {
+    Write-Host ("[WARNING] Huge scope: {0} targets x {1} configs{2} - this can take an HOUR+. For a first pass use a profile (discord/cloudflare/...) or Selected configs." -f $targetList.Count, $batFiles.Count, $(if ($testType -eq 'combined') { ' x2 (standard+DPI)' } else { '' })) -ForegroundColor Red
+}
 
 try {
     # Save original ipset status and switch to 'any' for accurate DPI tests
@@ -916,7 +922,10 @@ try {
         $targetResults = @()
         foreach ($rs in $runspaces) {
             try {
-                $waitMs = (([int]$curlTimeoutSeconds * 3) + 5) * 1000
+                # Budget must cover worst case per target: 4 curl probes x timeout
+                # + 4 ping echoes x 1s + process overhead. Undersized budget caused
+                # false "runspace timed out" kills on slow/blocked targets.
+                $waitMs = (([int]$curlTimeoutSeconds * 4) + 12) * 1000
                 $handle = $rs.Handle
                 if ($handle -and $handle.AsyncWaitHandle) {
                     $completed = $handle.AsyncWaitHandle.WaitOne($waitMs)
