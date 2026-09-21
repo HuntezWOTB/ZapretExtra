@@ -1,8 +1,0 @@
-﻿cloudfront.net
-signin.aws.amazon.com
-s3.amazonaws.com
-awsstatic.com
-console.aws.a2z.com
-amazonaws.com
-awsapps.com
-sso.amazonaws.com
